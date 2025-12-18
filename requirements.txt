@@ -34,17 +34,17 @@ python-dotenv==1.0.1
 httpx==0.28.1
 
 # -----------------------------------------------------------------------------
-# TESTING FRAMEWORK (Optional - uncomment if needed)
+# TESTING FRAMEWORK
 # -----------------------------------------------------------------------------
-# pytest==8.3.4
-# pytest-asyncio==0.24.0
-# pytest-cov==6.0.0
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
 
 # -----------------------------------------------------------------------------
-# DATA PROCESSING - Import & Analytics (Optional - uncomment if needed)
+# DATA PROCESSING - Import & Analytics
 # -----------------------------------------------------------------------------
-# pandas==2.2.3
-# numpy==2.2.1
+pandas==2.2.3
+numpy==2.2.1
 
 # -----------------------------------------------------------------------------
 # ASYNC UTILITIES

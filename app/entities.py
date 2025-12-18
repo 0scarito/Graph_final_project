@@ -5,13 +5,13 @@ Panama Papers API - Entity Routes
 FastAPI router for entity-related endpoints.
 
 Endpoints:
-    GET /entities/{entity_id}           - Get entity by ID
-    GET /entities/search                - Search entities by name
-    GET /entities/{entity_id}/ownership - Get ownership chain
-    GET /entities/{entity_id}/network   - Get connected entities
     GET /entities/top/influential       - Get top entities by PageRank
     GET /entities/top/connected         - Get most connected entities
     GET /entities/by-jurisdiction       - Get entities by jurisdiction
+    GET /entities/search                - Search entities by name
+    GET /entities/{entity_id}           - Get entity by ID
+    GET /entities/{entity_id}/ownership - Get ownership chain
+    GET /entities/{entity_id}/network   - Get connected entities
     GET /entities/{entity_id}/risk      - Get entity risk analysis
 
 All queries include LIMIT clauses to prevent Cartesian products.
@@ -63,7 +63,6 @@ logger = logging.getLogger(__name__)
 
 # Router configuration
 router = APIRouter(
-    prefix="/entities",
     tags=["entities"],
     responses={
         404: {"model": ErrorResponse, "description": "Entity not found"},
