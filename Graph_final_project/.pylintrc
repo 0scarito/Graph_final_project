@@ -1,0 +1,57 @@
+[MASTER]
+# Python code to execute, usually for sys.path manipulation such as pygtk.require().
+init-hook='import sys; sys.path.append(".")'
+
+[MESSAGES CONTROL]
+# Disable specific warnings that are common in FastAPI/Pydantic projects
+disable=
+    no-name-in-module,          # FastAPI/Pydantic dynamic imports
+    import-error,                # FastAPI dependency injection
+    too-few-public-methods,      # Allow small utility classes
+    too-many-arguments,          # Allow complex function signatures
+    too-many-locals,             # Allow complex functions
+    too-many-branches,           # Allow complex logic
+    too-many-statements,         # Allow complex functions
+    missing-module-docstring,    # Not required for all modules
+    missing-class-docstring,    # Not required for all classes
+    missing-function-docstring, # Not required for all functions
+    redefined-outer-name,        # Common in test fixtures
+    unused-argument,             # Common in callback functions
+    broad-except,                # Allow broad exception handling in API routes
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length=120
+
+[BASIC]
+# Good variable names which should always be accepted
+good-names=i,j,k,ex,Run,_,id,db,tx
+
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args=10
+# Maximum number of attributes for a class
+max-attributes=15
+# Maximum number of boolean expressions in an if statement
+max-bool-expr=5
+# Maximum number of branch for function / method body
+max-branches=20
+# Maximum number of locals for function / method body
+max-locals=25
+# Maximum number of parents for a class
+max-parents=10
+# Maximum number of public methods for a class
+max-public-methods=30
+# Maximum number of return / yield for function / method body
+max-returns=10
+# Maximum number of statements in function / method body
+max-statements=60
+
+[IMPORTS]
+# Allow wildcard imports in test files
+allow-wildcard-with-all=yes
+
+[EXCEPTIONS]
+# Exceptions that will emit a warning when being caught
+overgeneral-exceptions=Exception
+
