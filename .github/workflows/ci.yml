@@ -1,0 +1,480 @@
+# =============================================================================
+# PANAMA PAPERS NEO4J PROJECT - CI/CD PIPELINE
+# =============================================================================
+# GitHub Actions workflow for continuous integration and deployment
+#
+# Stages:
+#   1. Lint - Code quality check with Pylint (score >= 9.0)
+#   2. Test - Unit tests with pytest and coverage (>= 60%)
+#   3. Build - Docker image build and optional push to registry
+#
+# Triggers:
+#   - Push to main, develop, feature/* branches
+#   - Pull requests to main, develop
+#   - Manual trigger via workflow_dispatch
+# =============================================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'feature/*'
+      - 'hotfix/**'
+      - 'release/**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+  pull_request:
+    branches:
+      - main
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip test stage'
+        required: false
+        default: 'false'
+        type: boolean
+      push_image:
+        description: 'Push Docker image to registry'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Environment variables available to all jobs
+env:
+  PYTHON_VERSION: '3.11'
+  PYLINT_MIN_SCORE: '9.0'
+  COVERAGE_MIN_PERCENT: '60'
+  DOCKER_IMAGE_NAME: 'panama-papers-api'
+
+# =============================================================================
+# JOB: LINT
+# =============================================================================
+jobs:
+  lint:
+    name: 🔍 Code Quality (Pylint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # --------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # Setup Python with pip caching
+      # --------------------------------------------------
+      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      # --------------------------------------------------
+      # Install dependencies
+      # --------------------------------------------------
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install pylint==3.0.3 black==23.11.0 isort==5.12.0
+          pip install -r requirements.txt
+
+      # --------------------------------------------------
+      # Check code formatting with Black
+      # --------------------------------------------------
+      - name: 🎨 Check formatting (Black)
+        run: |
+          black --check --diff app/ scripts/ tests/ || echo "::warning::Code formatting issues found. Run 'black app/ scripts/ tests/' to fix."
+        continue-on-error: true
+
+      # --------------------------------------------------
+      # Check import sorting with isort
+      # --------------------------------------------------
+      - name: 📋 Check imports (isort)
+        run: |
+          isort --check-only --diff app/ scripts/ tests/ || echo "::warning::Import sorting issues found. Run 'isort app/ scripts/ tests/' to fix."
+        continue-on-error: true
+
+      # --------------------------------------------------
+      # Run Pylint and check score
+      # --------------------------------------------------
+      - name: 🔍 Run Pylint
+        id: pylint
+        run: |
+          echo "Running Pylint on app/ directory..."
+          
+          # Run pylint and capture output
+          pylint app/ \
+            --output-format=text \
+            --exit-zero \
+            --reports=yes \
+            --score=yes \
+            | tee pylint-report.txt
+          
+          # Extract score from report
+          SCORE=$(grep "Your code has been rated at" pylint-report.txt | grep -oP '\d+\.\d+' | head -1)
+          
+          if [ -z "$SCORE" ]; then
+            echo "::error::Could not extract Pylint score"
+            exit 1
+          fi
+          
+          echo "pylint_score=$SCORE" >> $GITHUB_OUTPUT
+          echo "## 🔍 Pylint Results" >> $GITHUB_STEP_SUMMARY
+          echo "**Score:** $SCORE / 10.0" >> $GITHUB_STEP_SUMMARY
+          echo "**Minimum Required:** ${{ env.PYLINT_MIN_SCORE }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if score meets minimum
+          if (( $(echo "$SCORE < ${{ env.PYLINT_MIN_SCORE }}" | bc -l) )); then
+            echo "::error::Pylint score $SCORE is below minimum ${{ env.PYLINT_MIN_SCORE }}"
+            echo "**Status:** ❌ FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ Pylint score $SCORE meets minimum requirement"
+            echo "**Status:** ✅ PASSED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # --------------------------------------------------
+      # Upload Pylint report as artifact
+      # --------------------------------------------------
+      - name: 📤 Upload Pylint report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pylint-report
+          path: pylint-report.txt
+          retention-days: 7
+
+# =============================================================================
+# JOB: TEST
+# =============================================================================
+  test:
+    name: 🧪 Tests & Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+
+    # Neo4j service container
+    services:
+      neo4j:
+        image: neo4j:5.17-community
+        env:
+          NEO4J_AUTH: neo4j/testpassword
+          NEO4J_PLUGINS: '["graph-data-science"]'
+          NEO4J_dbms_security_procedures_unrestricted: 'gds.*'
+          NEO4J_dbms_security_procedures_allowlist: 'gds.*'
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+          --health-start-period 30s
+        ports:
+          - 7474:7474
+          - 7687:7687
+
+    steps:
+      # --------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # Setup Python with pip caching
+      # --------------------------------------------------
+      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      # --------------------------------------------------
+      # Install dependencies
+      # --------------------------------------------------
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install -r requirements.txt
+          pip install pytest==7.4.3 pytest-asyncio==0.21.1 pytest-cov==4.1.0 coverage==7.3.2
+
+      # --------------------------------------------------
+      # Wait for Neo4j to be ready
+      # --------------------------------------------------
+      - name: ⏳ Wait for Neo4j
+        run: |
+          echo "Waiting for Neo4j to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:7474 > /dev/null 2>&1; then
+              echo "✅ Neo4j is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+      # --------------------------------------------------
+      # Run tests with coverage
+      # --------------------------------------------------
+      - name: 🧪 Run tests with coverage
+        id: pytest
+        env:
+          TEST_NEO4J_URI: bolt://localhost:7687
+          TEST_NEO4J_USER: neo4j
+          TEST_NEO4J_PASSWORD: testpassword
+          TEST_NEO4J_DATABASE: neo4j
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          echo "Running pytest with coverage..."
+          
+          pytest tests/ \
+            -v \
+            --asyncio-mode=auto \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-report=term-missing \
+            --cov-fail-under=${{ env.COVERAGE_MIN_PERCENT }} \
+            --junitxml=pytest-report.xml \
+            | tee pytest-output.txt
+          
+          # Extract coverage percentage
+          COVERAGE=$(grep -oP 'TOTAL.*\s+\K\d+(?=%)' pytest-output.txt | tail -1 || echo "0")
+          echo "coverage_percent=$COVERAGE" >> $GITHUB_OUTPUT
+          
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "**Coverage:** $COVERAGE%" >> $GITHUB_STEP_SUMMARY
+          echo "**Minimum Required:** ${{ env.COVERAGE_MIN_PERCENT }}%" >> $GITHUB_STEP_SUMMARY
+
+      # --------------------------------------------------
+      # Upload coverage to Codecov
+      # --------------------------------------------------
+      - name: 📊 Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: panama-papers-coverage
+          fail_ci_if_error: false
+          verbose: true
+
+      # --------------------------------------------------
+      # Upload test artifacts
+      # --------------------------------------------------
+      - name: 📤 Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: |
+            pytest-report.xml
+            coverage.xml
+            htmlcov/
+          retention-days: 7
+
+      # --------------------------------------------------
+      # Generate test summary
+      # --------------------------------------------------
+      - name: 📝 Generate test summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: pytest-report.xml
+
+# =============================================================================
+# JOB: BUILD
+# =============================================================================
+  build:
+    name: 🐳 Build Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, test]
+    if: |
+      always() &&
+      (needs.lint.result == 'success') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      # --------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # Set up Docker Buildx
+      # --------------------------------------------------
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --------------------------------------------------
+      # Generate Docker metadata
+      # --------------------------------------------------
+      - name: 🏷️ Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKER_IMAGE_NAME }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      # --------------------------------------------------
+      # Login to GitHub Container Registry (optional)
+      # --------------------------------------------------
+      - name: 🔐 Login to GitHub Container Registry
+        if: github.event_name != 'pull_request' && github.event.inputs.push_image == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # --------------------------------------------------
+      # Build Docker image
+      # --------------------------------------------------
+      - name: 🐳 Build Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' && github.event.inputs.push_image == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ github.ref_name }}
+
+      # --------------------------------------------------
+      # Generate build summary
+      # --------------------------------------------------
+      - name: 📝 Generate build summary
+        run: |
+          echo "## 🐳 Docker Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** " >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "**Pushed:** ${{ github.event_name != 'pull_request' && github.event.inputs.push_image == 'true' }}" >> $GITHUB_STEP_SUMMARY
+
+# =============================================================================
+# JOB: SECURITY SCAN (Optional)
+# =============================================================================
+  security:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+    if: github.event_name != 'pull_request'
+    continue-on-error: true
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔒 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: 📤 Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+# =============================================================================
+# JOB: NOTIFICATION
+# =============================================================================
+  notify:
+    name: 📢 Notification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [lint, test, build]
+    if: always()
+
+    steps:
+      - name: 📢 Generate workflow summary
+        run: |
+          echo "# 🚀 CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Lint | ${{ needs.lint.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Test | ${{ needs.test.result == 'success' && '✅ Passed' || (needs.test.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Build | ${{ needs.build.result == 'success' && '✅ Passed' || (needs.build.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+      # --------------------------------------------------
+      # Slack notification (optional - requires SLACK_WEBHOOK secret)
+      # --------------------------------------------------
+      - name: 📢 Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK != '' && (needs.lint.result == 'failure' || needs.test.result == 'failure' || needs.build.result == 'failure') }}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "❌ CI/CD Pipeline Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *CI/CD Pipeline Failed*\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}\n*Actor:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
