@@ -10,12 +10,30 @@ Enables investigation of offshore financial networks, intermediaries, and comple
 ## Features
 
 - 🔍 **Beneficial Ownership Tracing** — Follow ownership chains through complex corporate structures up to 6 hops deep
+
+  ![Neo4j Browser Visualization](Image/neo4j-browser-visualization.jpeg)
+  
+  *A visual representation of an ownership network within the Neo4j Browser. This screenshot displays a multi-hop path unmasking the ultimate human controller behind nested shell companies.*
+
 - 📊 **Network Analysis** — Identify influential entities using PageRank, betweenness centrality, and degree metrics
+
+  ![Graph Data Science Results](Image/gds-results.jpeg)
+  
+  *Results from PageRank and Louvain algorithms running on the graph. This highlights the most influential intermediaries and detected communities within the offshore network.*
+
 - 🏘️ **Community Detection** — Discover connected business networks using Louvain clustering and label propagation
 - 🚩 **Red Flag Detection** — Automatic identification of suspicious patterns (deep layering, PEP connections, circular ownership)
 - ⚡ **Fast Query Performance** — Optimized Cypher queries with proper indexing and bounded variable-length paths
 - 🔐 **REST API** — FastAPI with OpenAPI/Swagger documentation and Pydantic validation
 - 🐳 **Containerized Deployment** — Docker Compose setup with Neo4j, FastAPI, and optional Nginx reverse proxy
+
+---
+
+## Data Model
+
+![Graph Schema Diagram](Image/schema-diagram.png)
+
+*A logical data model of the Panama Papers network created in draw.io. It defines the properties and relationships between Entity, Officer, Intermediary, and Address nodes.*
 
 ---
 
@@ -34,6 +52,14 @@ Enables investigation of offshore financial networks, intermediaries, and comple
 | **Containerization** | Docker + Docker Compose | 24.0+ |
 | **Reverse Proxy** | Nginx | 1.25+ |
 | **Code Quality** | Pylint, Black, isort | Latest |
+
+---
+
+## Usage
+
+![FastAPI Swagger UI](Image/fastapi-swagger-ui.jpeg)
+
+*The interactive Swagger UI showcasing operational REST endpoints. This demonstrates the API's ability to execute complex graph traversals and beneficial ownership lookups.*
 
 ---
 
@@ -502,6 +528,14 @@ curl -X GET "http://localhost:8000/entities/10000001/risk"
   "analysis_timestamp": "2024-01-15T10:30:00Z"
 }
 ```
+
+---
+
+## Exploratory Data Analysis
+
+![Graph EDA Notebook](Image/graph-eda-notebook.jpeg)
+
+*The Exploratory Data Analysis (EDA) notebook showing the dataset's distribution. It visualizes node counts across jurisdictions and the connectivity degree before graph ingestion.*
 
 ---
 
