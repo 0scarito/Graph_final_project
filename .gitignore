@@ -1,38 +1,70 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-.venv/
-venv/
-ENV/
-env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Environment
+# ============================================
+# Environment & Secrets
+# ============================================
 .env
 .env.local
+.env.*.local
+!.env.example
 
-# Data files
+# ============================================
+# Data Files (ICIJ data is large + sensitive)
+# ============================================
 data/
 *.csv
+*.dump
+!data/README.md
 
-# Testing
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+*.egg
+venv/
+.venv/
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Docker
-*.log
+# ============================================
+# IDEs
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# OS
+# ============================================
+# OS Files
+# ============================================
 .DS_Store
 Thumbs.db
 
+# ============================================
+# Docker (local overrides)
+# ============================================
+docker-compose.override.yml
+
+# ============================================
+# Neo4j (local data)
+# ============================================
+neo4j/data/
+neo4j/logs/
+
+# ============================================
+# Logs & Temp
+# ============================================
+logs/
+*.log
+tmp/
+*.tmp
+*.bak
+
+# ============================================
+# SSL/Certs (if using HTTPS)
+# ============================================
+nginx/ssl/*.crt
+nginx/ssl/*.key
+*.pem
