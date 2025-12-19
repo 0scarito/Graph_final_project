@@ -5,13 +5,13 @@ Panama Papers API - Entity Routes
 FastAPI router for entity-related endpoints.
 
 Endpoints:
+    GET /entities/{entity_id}           - Get entity by ID
+    GET /entities/search                - Search entities by name
+    GET /entities/{entity_id}/ownership - Get ownership chain
+    GET /entities/{entity_id}/network   - Get connected entities
     GET /entities/top/influential       - Get top entities by PageRank
     GET /entities/top/connected         - Get most connected entities
     GET /entities/by-jurisdiction       - Get entities by jurisdiction
-    GET /entities/search                - Search entities by name
-    GET /entities/{entity_id}           - Get entity by ID
-    GET /entities/{entity_id}/ownership - Get ownership chain
-    GET /entities/{entity_id}/network   - Get connected entities
     GET /entities/{entity_id}/risk      - Get entity risk analysis
 
 All queries include LIMIT clauses to prevent Cartesian products.
@@ -29,7 +29,7 @@ from neo4j import AsyncSession
 from neo4j.exceptions import Neo4jError
 
 # Import models (adjust path based on your project structure)
-from models import (
+from app.models import (
     EntityResponse,
     EntitySummary,
     EntityType,
@@ -53,7 +53,7 @@ from models import (
 )
 
 # Import database utilities (adjust path based on your project structure)
-from database import get_db_session, run_query, run_query_single
+from app.database import get_db_session, run_query, run_query_single
 
 # ============================================================================
 # CONFIGURATION
@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 # Router configuration
 router = APIRouter(
+    prefix="/entities",
     tags=["entities"],
     responses={
         404: {"model": ErrorResponse, "description": "Entity not found"},
@@ -135,7 +136,7 @@ def calculate_effective_ownership(percentages: list[Optional[float]]) -> Optiona
 # ============================================================================
 
 @router.get(
-    "/{entity_id}",
+    "/id/{entity_id}",
     response_model=EntityResponse,
     summary="Get entity by ID",
     responses={
@@ -462,7 +463,7 @@ async def search_entities(
 # ============================================================================
 
 @router.get(
-    "/{entity_id}/ownership-path",
+    "/id/{entity_id}/ownership-path",
     response_model=PathResponse,
     summary="Get beneficial ownership chain",
 )
@@ -710,7 +711,7 @@ async def get_ownership_path(
 # ============================================================================
 
 @router.get(
-    "/{entity_id}/network",
+    "/id/{entity_id}/network",
     response_model=list[RelationshipResponse],
     summary="Get connected entities (network neighbors)",
 )
@@ -1159,7 +1160,7 @@ async def get_entities_by_jurisdiction(
 # ============================================================================
 
 @router.get(
-    "/{entity_id}/risk",
+    "/id/{entity_id}/risk",
     response_model=RedFlagAnalysis,
     summary="Get entity risk analysis",
 )

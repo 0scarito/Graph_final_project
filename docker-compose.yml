@@ -8,13 +8,10 @@ services:
       - "7474:7474"  # HTTP Browser
       - "7687:7687"  # Bolt Protocol
     environment:
-      # Auth: Use .env file, no insecure defaults
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set in .env}
-      # Memory configuration
       - NEO4J_dbms_memory_pagecache_size=1G
       - NEO4J_dbms_memory_heap_initial__size=1G
       - NEO4J_dbms_memory_heap_max__size=2G
-      # APOC plugin (auto-install)
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
       - NEO4J_dbms_security_procedures_allowlist=apoc.*
@@ -48,7 +45,7 @@ services:
       - API_PORT=8000
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      - ./app:/app:ro  # Read-only in production
+      - ./app:/app/app:ro
       - ./data:/data:ro
     depends_on:
       neo4j:
@@ -68,10 +65,8 @@ services:
     container_name: panama-papers-nginx
     ports:
       - "80:80"
-      - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/logs:/var/log/nginx
     depends_on:
       fastapi:
@@ -84,7 +79,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s  # Added for consistency
+      start_period: 10s
 
 networks:
   panama-papers-net:

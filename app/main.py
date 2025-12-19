@@ -145,7 +145,7 @@ logger = logging.getLogger("panama_api")
 
 # Import database module
 try:
-    from database import Neo4jDatabase, health_check, HealthCheckResult
+    from app.database import Neo4jDatabase, health_check, HealthCheckResult
     DATABASE_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Database module not available: {e}")
@@ -153,7 +153,7 @@ except ImportError as e:
 
 # Import routers
 try:
-    from entities import router as entities_router
+    from app.entities import router as entities_router
     ENTITIES_ROUTER_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Entities router not available: {e}")
@@ -161,7 +161,7 @@ except ImportError as e:
 
 # Import models
 try:
-    from models import ErrorResponse, HealthCheckResponse, HealthStatus
+    from app.models import ErrorResponse, HealthCheckResponse, HealthStatus
     MODELS_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Models not available: {e}")
@@ -470,11 +470,14 @@ async def root() -> dict[str, Any]:
         },
         "endpoints": {
             "health": "/health",
-            "entities": "/entities",
+            "entity_by_id": "/entities/id/{entity_id}",
             "search": "/entities/search",
-            "ownership": "/entities/{entity_id}/ownership-path",
-            "network": "/entities/{entity_id}/network",
+            "ownership": "/entities/id/{entity_id}/ownership-path",
+            "network": "/entities/id/{entity_id}/network",
+            "risk": "/entities/id/{entity_id}/risk",
             "influential": "/entities/top/influential",
+            "connected": "/entities/top/connected",
+            "by_jurisdiction": "/entities/by-jurisdiction/{jurisdiction_code}",
         },
         "data_source": "ICIJ Offshore Leaks Database",
     }
@@ -641,7 +644,6 @@ async def api_info() -> dict[str, Any]:
 if ENTITIES_ROUTER_AVAILABLE:
     app.include_router(
         entities_router,
-        prefix="/entities",
         tags=["entities"],
     )
     logger.info("✓ Entities router loaded")
